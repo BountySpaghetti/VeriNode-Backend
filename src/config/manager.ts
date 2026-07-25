@@ -5,6 +5,9 @@ import { ConfigValidator } from './validator';
 import { deepClone, getIn, setIn, deleteIn } from './utils';
 import { configEventBus } from './eventbus';
 import { mainSchema } from './schema';
+import { createLogger } from '../diagnostics/logger';
+
+const log = createLogger('config_manager');
 
 /**
  * Configuration change callback
@@ -44,11 +47,11 @@ export class ConfigManager {
   private registerSignalHandlers(): void {
     try {
       process.on('SIGHUP', () => {
-        console.log('[Config] SIGHUP received, triggering reload');
+        log.info('SIGHUP received, triggering reload');
         this.triggerReload();
       });
     } catch (err) {
-      console.warn('[Config] Failed to register SIGHUP handler:', (err as Error).message);
+      log.warn('Failed to register SIGHUP handler', { 'error.message': (err as Error).message });
     }
   }
 
@@ -191,7 +194,7 @@ export class ConfigManager {
       watched.interval = interval;
     }
 
-    console.log(`[Config] Watching ${absolutePath} for changes`);
+    log.info('Watching configuration file for changes', { 'file.path': absolutePath });
   }
 
   /**
@@ -202,7 +205,7 @@ export class ConfigManager {
       try {
         const stat = fs.statSync(watched.path, { throwIfNoEntry: false });
         if (stat && stat.mtimeMs > watched.lastModified) {
-          console.log(`[Config] File changed: ${watched.path}`);
+          log.info('Configuration file changed', { 'file.path': watched.path });
           watched.lastModified = stat.mtimeMs;
           this.triggerReload();
         }
@@ -230,7 +233,7 @@ export class ConfigManager {
         configEventBus.emitEvent('reload_complete', this.config);
       } catch (err) {
         configEventBus.emitEvent('error', null, err as Error);
-        console.error('[Config] Reload failed:', (err as Error).message);
+        log.error('Configuration reload failed', { 'error.message': (err as Error).message });
       } finally {
         this.reloadInProgress = false;
       }
@@ -256,11 +259,11 @@ export class ConfigManager {
       try {
         callback(oldConfig, this.config);
       } catch (err) {
-        console.error(`[Config] Error in change callback ${id}:`, (err as Error).message);
+        log.error('Error in configuration change callback', { 'callback.id': id, 'error.message': (err as Error).message });
       }
     }
 
-    console.log('[Config] Configuration reloaded successfully');
+    log.info('Configuration reloaded successfully');
   }
 
   /**
@@ -302,7 +305,7 @@ export class ConfigManager {
       try {
         callback(oldConfig, this.config);
       } catch (err) {
-        console.error(`[Config] Error in change callback ${id}:`, (err as Error).message);
+        log.error('Error in configuration change callback', { 'callback.id': id, 'error.message': (err as Error).message });
       }
     }
   }
@@ -332,7 +335,7 @@ export class ConfigManager {
       try {
         callback(oldConfig, this.config);
       } catch (err) {
-        console.error(`[Config] Error in change callback ${id}:`, (err as Error).message);
+        log.error('Error in configuration change callback', { 'callback.id': id, 'error.message': (err as Error).message });
       }
     }
     return true;
