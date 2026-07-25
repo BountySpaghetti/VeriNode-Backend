@@ -1,0 +1,19 @@
+groups:
+  - name: database-backup-verification
+    rules:
+      - alert: DatabaseBackupRestoreVerificationFailed
+        expr: db_backup_verification_last_failed == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Latest database backup restore verification failed
+          runbook: docs/runbooks/database-backup-verification.md
+      - alert: DatabaseBackupRestoreVerificationStale
+        expr: time() - db_backup_verification_last_success > 93600
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: No successful database backup restore verification in 26 hours
+          runbook: docs/runbooks/database-backup-verification.md
