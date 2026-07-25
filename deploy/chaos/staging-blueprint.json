@@ -1,0 +1,35 @@
+{
+  "environment": "staging",
+  "availabilityTargetPercent": 99.99,
+  "criticalPathP99LatencyMs": 100,
+  "maxBlastRadiusPercent": 10,
+  "scenarios": [
+    {
+      "name": "gateway-critical-path-latency",
+      "service": "api-gateway",
+      "fault": "latency",
+      "blastRadiusPercent": 5,
+      "durationSeconds": 300,
+      "steadyStateProbe": "p99 latency remains below 100ms and HTTP 5xx rate stays below 0.1%",
+      "rollbackTrigger": "p99 latency breaches 100ms for 3 consecutive minutes"
+    },
+    {
+      "name": "kafka-consumer-pod-kill",
+      "service": "queue-workers",
+      "fault": "pod-kill",
+      "blastRadiusPercent": 10,
+      "durationSeconds": 180,
+      "steadyStateProbe": "consumer lag recovers without lost messages",
+      "rollbackTrigger": "critical consumer lag alert fires or DLQ growth exceeds baseline"
+    },
+    {
+      "name": "postgres-dependency-errors",
+      "service": "database-clients",
+      "fault": "dependency-error",
+      "blastRadiusPercent": 5,
+      "durationSeconds": 120,
+      "steadyStateProbe": "readiness gates reject failed dependencies and retries stay bounded",
+      "rollbackTrigger": "availability drops below 99.99% or error budget burn exceeds 2x"
+    }
+  ]
+}
