@@ -170,5 +170,72 @@ export const mainSchema: JSONSchema7 = {
     staking: stakingSchema,
     remote: remoteSchema,
   },
+  feature_flags: {
+    type: 'object',
+    properties: {
+      overrides: {
+        type: 'object',
+        additionalProperties: {
+          type: 'string',
+          enum: ['enabled', 'disabled', 'degraded'],
+        },
+        default: {},
+      },
+    },
+    default: {},
+  },
+  capacity_shedding: {
+    type: 'object',
+    properties: {
+      enabled: { type: 'boolean', default: true },
+      checkIntervalMs: { type: 'integer', minimum: 1000, maximum: 60000, default: 5000 },
+      cooldownPeriodMs: { type: 'integer', minimum: 5000, maximum: 300000, default: 30000 },
+      thresholds: {
+        type: 'object',
+        properties: {
+          light: {
+            type: 'object',
+            properties: {
+              cpuPercent: { type: 'integer', minimum: 0, maximum: 100, default: 70 },
+              memoryPercent: { type: 'integer', minimum: 0, maximum: 100, default: 75 },
+              requestRatePerSec: { type: 'integer', minimum: 0, default: 800 },
+              p99LatencyMs: { type: 'integer', minimum: 0, default: 500 },
+            },
+            default: {},
+          },
+          medium: {
+            type: 'object',
+            properties: {
+              cpuPercent: { type: 'integer', minimum: 0, maximum: 100, default: 85 },
+              memoryPercent: { type: 'integer', minimum: 0, maximum: 100, default: 85 },
+              requestRatePerSec: { type: 'integer', minimum: 0, default: 1200 },
+              p99LatencyMs: { type: 'integer', minimum: 0, default: 1000 },
+            },
+            default: {},
+          },
+          critical: {
+            type: 'object',
+            properties: {
+              cpuPercent: { type: 'integer', minimum: 0, maximum: 100, default: 95 },
+              memoryPercent: { type: 'integer', minimum: 0, maximum: 100, default: 95 },
+              requestRatePerSec: { type: 'integer', minimum: 0, default: 2000 },
+              p99LatencyMs: { type: 'integer', minimum: 0, default: 3000 },
+            },
+            default: {},
+          },
+        },
+        default: {},
+      },
+      flagsToShed: {
+        type: 'object',
+        additionalProperties: {
+          type: 'string',
+          enum: ['enabled', 'disabled', 'degraded'],
+        },
+        default: {},
+      },
+    },
+    default: {},
+  },
   required: ['db', 'app'],
 };
