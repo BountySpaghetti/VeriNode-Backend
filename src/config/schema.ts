@@ -169,8 +169,7 @@ export const mainSchema: JSONSchema7 = {
     app: appSchema,
     staking: stakingSchema,
     remote: remoteSchema,
-  },
-  feature_flags: {
+    feature_flags: {
     type: 'object',
     properties: {
       overrides: {
@@ -184,7 +183,7 @@ export const mainSchema: JSONSchema7 = {
     },
     default: {},
   },
-  capacity_shedding: {
+    capacity_shedding: {
     type: 'object',
     properties: {
       enabled: { type: 'boolean', default: true },
@@ -237,5 +236,7 @@ export const mainSchema: JSONSchema7 = {
     },
     default: {},
   },
+  },
+  additionalProperties: false,
   required: ['db', 'app'],
 };
