@@ -1,0 +1,30 @@
+groups:
+  - name: verinode-slo-burn-rate
+    rules:
+      - alert: VeriNodeAvailabilityFastBurn
+        expr: verinode:slo_availability_error_rate:5m / (1 - 0.9999) > 14.4
+        for: 2m
+        labels:
+          severity: critical
+          slo: verinode-availability-99-99
+        annotations:
+          summary: VeriNode availability SLO fast burn
+          description: 5m availability burn rate exceeds 14.4x for the 99.99% SLO.
+      - alert: VeriNodeAvailabilitySlowBurn
+        expr: verinode:slo_availability_error_rate:6h / (1 - 0.9999) > 3
+        for: 30m
+        labels:
+          severity: warning
+          slo: verinode-availability-99-99
+        annotations:
+          summary: VeriNode availability SLO slow burn
+          description: 6h availability burn rate exceeds 3x for the 99.99% SLO.
+      - alert: VeriNodeCriticalPathLatencyP99
+        expr: histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{critical_path="true"}[5m])) by (le)) > 100
+        for: 5m
+        labels:
+          severity: critical
+          slo: critical-path-p99-latency-100ms
+        annotations:
+          summary: VeriNode critical-path P99 latency above 100ms
+          description: Critical-path request P99 latency has exceeded the 100ms SLO target.
