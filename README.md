@@ -23,12 +23,14 @@ Ensure you have the required toolchains installed:
 # Clone the repository (if running manually)
 git clone https://github.com/VeriNode-Labs/VeriNode-Backend
 
-# Install dependencies or build
-npm install
+# Bootstrap local dependencies, config, and build checks
+npm run onboard
 
 # Start the application
 node index.js
 ```
+
+For setup options such as pnpm, forced reinstalls, and test execution during onboarding, see [docs/local-onboarding.md](docs/local-onboarding.md).
 
 ## 🐳 Docker CI Cache
 
