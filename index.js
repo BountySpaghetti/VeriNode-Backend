@@ -111,6 +111,13 @@ async function bootstrap() {
   // 3. Set up Express middleware
   app.use(express.json());
 
+  const cacheModule = loadTsModule('cache/index');
+  if (cacheModule && typeof cacheModule.createCacheLayerFromEnv === 'function') {
+    app.locals.cache = cacheModule.createCacheLayerFromEnv(process.env);
+    global.__verinode_cache = app.locals.cache;
+    console.log('[cache] Cache layer initialized');
+  }
+
   const rateLimiterModule = loadTsModule('security/rate_limiter');
   if (rateLimiterModule && typeof rateLimiterModule.createRateLimitingMiddleware === 'function') {
     const rateLimitingMiddleware = rateLimiterModule.createRateLimitingMiddleware({
@@ -196,6 +203,10 @@ async function bootstrap() {
     if (mtlsManager && typeof mtlsManager.prometheusMetrics === 'function') {
       chunks.push(mtlsManager.prometheusMetrics());
     }
+    const cache = getCacheLayer();
+    if (cache && typeof cache.prometheusMetrics === 'function') {
+      chunks.push(cache.prometheusMetrics());
+    }
     if (chunks.length === 0) {
       return res.status(503).type('text/plain').send('# metrics sources not initialised\n');
     }
@@ -233,6 +244,10 @@ async function bootstrap() {
 
 function getDeadLetterQueue() {
   return app.locals.deadLetterQueue || global.__verinode_dlq || null;
+}
+
+function getCacheLayer() {
+  return app.locals.cache || global.__verinode_cache || null;
 }
 
 async function bootstrapTls(httpServer, httpPort) {
