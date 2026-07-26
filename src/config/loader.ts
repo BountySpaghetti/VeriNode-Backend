@@ -3,6 +3,9 @@ import * as path from 'path';
 import { ConfigValidator, mergeConfigs, normalizeEnvKey } from './validator';
 import { deepMerge, setIn, parseEnvValue } from './utils';
 import { mainSchema } from './schema';
+import { createLogger } from '../diagnostics/logger';
+
+const log = createLogger('config_loader');
 
 /**
  * Helper to find the actual case-sensitive property path in schema by case-insensitive key path matching
@@ -264,7 +267,7 @@ export class ConfigLoader {
         return result;
       } catch (err: any) {
         lastError = err;
-        console.warn(`[Config] Failed to fetch from etcd endpoint ${endpoint}: ${err.message}`);
+        log.warn('Failed to fetch from etcd endpoint', { 'server.address': endpoint, 'error.message': err.message });
       }
     }
     
@@ -339,7 +342,7 @@ export class ConfigLoader {
       
       return result;
     } catch (err: any) {
-      console.warn(`[Config] Failed to fetch from Consul address ${address}: ${err.message}`);
+      log.warn('Failed to fetch from Consul address', { 'server.address': address, 'error.message': err.message });
       throw err;
     }
   }
@@ -372,11 +375,11 @@ export class ConfigLoader {
         const config = await source.load();
         if (Object.keys(config).length > 0) {
           configs.push(config);
-          console.log(`[Config] Loaded ${source.name} source`);
+          log.info('Loaded configuration source', { 'config.source': source.name });
         }
       } catch (err) {
         errors.push(err as Error);
-        console.warn(`[Config] Failed to load ${source.name}: ${(err as Error).message}`);
+        log.warn('Failed to load configuration source', { 'config.source': source.name, 'error.message': (err as Error).message });
       }
     }
 

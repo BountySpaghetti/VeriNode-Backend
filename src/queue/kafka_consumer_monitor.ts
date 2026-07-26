@@ -1,3 +1,4 @@
+import { createLogger } from '../diagnostics/logger';
 export type ConsumerGroupStatus = 'healthy' | 'warning' | 'critical';
 
 export interface ConsumerGroupMetrics {
@@ -51,6 +52,8 @@ export type LagChangeCallback = (
   previousSummary: ConsumerGroupSummary | null,
 ) => void;
 
+const log = createLogger('kafka_consumer_monitor', { 'messaging.system': 'kafka' });
+
 const DEFAULT_CONFIG: KafkaConsumerMonitorConfig = {
   lagWarningThreshold: 1000,
   lagCriticalThreshold: 10000,
@@ -83,9 +86,7 @@ export class KafkaConsumerMonitor {
   async start(): Promise<void> {
     if (this._isRunning) return;
     this._isRunning = true;
-    console.log(
-      `[KafkaConsumerMonitor] Starting monitor (interval: ${this.config.checkIntervalMs}ms)`,
-    );
+    log.info('Starting consumer monitor', { 'monitor.interval_ms': this.config.checkIntervalMs });
     await this.checkAllGroups();
     this.monitorTimer = setInterval(() => {
       void this.checkAllGroups();
@@ -125,12 +126,17 @@ export class KafkaConsumerMonitor {
           const summary = await this.checkGroup(groupId);
           results.push(summary);
         } catch (err) {
-          console.error(`[KafkaConsumerMonitor] Error checking group "${groupId}":`, err);
+          log.error('Error checking consumer group', {
+            'messaging.kafka.consumer.group': groupId,
+            'error.message': err instanceof Error ? err.message : String(err),
+          });
         }
       }
       return results;
     } catch (err) {
-      console.error('[KafkaConsumerMonitor] Error listing consumer groups:', err);
+      log.error('Error listing consumer groups', {
+        'error.message': err instanceof Error ? err.message : String(err),
+      });
       return [];
     }
   }
