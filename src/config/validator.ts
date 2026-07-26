@@ -1,10 +1,7 @@
 import { JSONSchema7, JSONSchema7Definition } from 'json-schema';
-import { deepMerge } from './utils';
+import { deepClone, deepMerge } from './utils';
 import { mainSchema } from './schema';
 
-/**
- * Configuration validation error
- */
 export interface ConfigValidationError {
   path: string;
   message: string;
@@ -12,9 +9,6 @@ export interface ConfigValidationError {
   value: any;
 }
 
-/**
- * Configuration validation result
- */
 export interface ValidationResult {
   valid: boolean;
   errors: ConfigValidationError[];
@@ -22,9 +16,6 @@ export interface ValidationResult {
   data: any;
 }
 
-/**
- * Schema validator using native JavaScript validation
- */
 export class ConfigValidator {
   private schema: JSONSchema7;
 
@@ -32,237 +23,143 @@ export class ConfigValidator {
     this.schema = schema || mainSchema;
   }
 
-  /**
-   * Validate configuration data against schema
-   */
   validate(data: any): ValidationResult {
     const errors: ConfigValidationError[] = [];
     const warnings: string[] = [];
-    
-    if (!data || typeof data !== 'object') {
-      errors.push({
-        path: '',
-        message: 'Configuration must be an object',
-        schema: this.schema,
-        value: data,
-      });
+
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      errors.push({ path: '', message: 'Configuration must be an object', schema: this.schema, value: data });
       return { valid: false, errors, warnings, data: {} };
     }
 
-    // Validate each property according to schema
-    this.validateObject(data, this.schema, '', errors);
+    const normalized = deepMerge({}, data);
+    this.applyDefaults(normalized, this.schema);
+    this.validateValue(normalized, this.schema, '', errors, warnings);
 
-    // Check required fields
-    this.checkRequired(data, this.schema, '', errors);
-
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings,
-      data,
-    };
+    return { valid: errors.length === 0, errors, warnings, data: normalized };
   }
 
-  /**
-   * Validate object against schema properties
-   */
-  private validateObject(
-    data: any,
-    schema: JSONSchema7,
-    path: string,
-    errors: ConfigValidationError[]
-  ): void {
-    if (schema.properties) {
-      for (const [key, propSchema] of Object.entries(schema.properties)) {
-        const propPath = path ? `${path}.${key}` : key;
-        const value = data[key];
-
-        if (value === undefined || value === null) {
-          // Check for default values
-          if ((propSchema as JSONSchema7).default !== undefined) {
-            data[key] = (propSchema as JSONSchema7).default;
-          }
-          continue;
-        }
-
-        this.validateType(value, propSchema as JSONSchema7, propPath, errors);
-        
-        // Recurse into nested objects
-        if (propSchema && typeof propSchema === 'object' && (propSchema as JSONSchema7).type === 'object') {
-          this.validateObject(value, propSchema as JSONSchema7, propPath, errors);
+  private applyDefaults(data: any, schema: JSONSchema7): void {
+    if (!schema.properties || typeof data !== 'object' || data === null || Array.isArray(data)) return;
+    for (const [key, rawSchema] of Object.entries(schema.properties)) {
+      const propSchema = rawSchema as JSONSchema7;
+      if (data[key] === undefined && propSchema.default !== undefined) {
+        data[key] = deepClone(propSchema.default);
+      }
+      if (data[key] !== undefined && propSchema.type === 'object') {
+        if (typeof data[key] === 'object' && data[key] !== null && !Array.isArray(data[key])) {
+          this.applyDefaults(data[key], propSchema);
         }
       }
     }
   }
 
-  /**
-   * Validate value type matches schema
-   */
-  private validateType(
-    value: any,
-    schema: JSONSchema7,
-    path: string,
-    errors: ConfigValidationError[]
-  ): void {
-    const type = schema.type as string;
+  private validateValue(value: any, schema: JSONSchema7, path: string, errors: ConfigValidationError[], warnings: string[]): void {
+    this.validateType(value, schema, path, errors);
+    if (errors.some(e => e.path === path)) return;
+
+    if (schema.enum && !schema.enum.includes(value)) {
+      errors.push({ path, message: `Value "${value}" not in enum [${schema.enum.join(', ')}]`, schema, value });
+    }
+
+    if (schema.type === 'object' && schema.properties && value && typeof value === 'object' && !Array.isArray(value)) {
+      const allowed = new Set(Object.keys(schema.properties));
+      for (const [key, propSchema] of Object.entries(schema.properties)) {
+        const propPath = path ? `${path}.${key}` : key;
+        if (value[key] !== undefined) {
+          this.validateValue(value[key], propSchema as JSONSchema7, propPath, errors, warnings);
+        }
+      }
+
+      if (schema.required) {
+        for (const requiredField of schema.required) {
+          if (value[requiredField] === undefined) {
+            const fieldPath = path ? `${path}.${requiredField}` : requiredField;
+            errors.push({ path: fieldPath, message: 'Missing required field', schema: {}, value: undefined });
+          }
+        }
+      }
+
+      if (schema.additionalProperties === false) {
+        for (const key of Object.keys(value)) {
+          if (!allowed.has(key)) {
+            warnings.push(`${path ? `${path}.` : ''}${key}: unknown configuration key`);
+          }
+        }
+      } else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
+        for (const [key, propValue] of Object.entries(value)) {
+          if (!allowed.has(key)) {
+            const propPath = path ? `${path}.${key}` : key;
+            this.validateValue(propValue, schema.additionalProperties as JSONSchema7, propPath, errors, warnings);
+          }
+        }
+      }
+    }
+  }
+
+  private validateType(value: any, schema: JSONSchema7, path: string, errors: ConfigValidationError[]): void {
+    const type = schema.type as string | undefined;
+    if (!type) return;
 
     if (type === 'object') {
       if (typeof value !== 'object' || Array.isArray(value) || value === null) {
-        errors.push({
-          path,
-          message: `Expected object, got ${value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value}`,
-          schema,
-          value,
-        });
+        errors.push({ path, message: `Expected object, got ${value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value}`, schema, value });
       }
     } else if (type === 'array') {
       if (!Array.isArray(value)) {
-        errors.push({
-          path,
-          message: `Expected array, got ${typeof value}`,
-          schema,
-          value,
-        });
+        errors.push({ path, message: `Expected array, got ${typeof value}`, schema, value });
       } else if (schema.items) {
-        value.forEach((item: any, index: number) => {
-          this.validateType(item, schema.items as JSONSchema7, `${path}[${index}]`, errors);
-        });
+        value.forEach((item: any, index: number) => this.validateValue(item, schema.items as JSONSchema7, `${path}[${index}]`, errors, []));
       }
     } else if (type === 'string') {
       if (typeof value !== 'string') {
-        errors.push({
-          path,
-          message: `Expected string, got ${typeof value}`,
-          schema,
-          value,
-        });
-      }
-      // Validate pattern if present
-      if (schema.pattern && typeof value === 'string') {
-        const regex = new RegExp(schema.pattern);
-        if (!regex.test(value)) {
-          errors.push({
-            path,
-            message: `Value "${value}" does not match pattern ${schema.pattern}`,
-            schema,
-            value,
-          });
-        }
+        errors.push({ path, message: `Expected string, got ${typeof value}`, schema, value });
+      } else if (schema.pattern && !new RegExp(schema.pattern).test(value)) {
+        errors.push({ path, message: `Value "${value}" does not match pattern ${schema.pattern}`, schema, value });
+      } else if (schema.format === 'uri' && !this.isUri(value)) {
+        errors.push({ path, message: `Value "${value}" is not a valid URI`, schema, value });
+      } else if (schema.format === 'hostname' && value && !this.isHostname(value)) {
+        errors.push({ path, message: `Value "${value}" is not a valid hostname`, schema, value });
       }
     } else if (type === 'integer' || type === 'number') {
-      if (typeof value !== 'number' || !Number.isFinite(value)) {
-        errors.push({
-          path,
-          message: `Expected ${type}, got ${typeof value}`,
-          schema,
-          value,
-        });
+      if (typeof value !== 'number' || !Number.isFinite(value) || (type === 'integer' && !Number.isInteger(value))) {
+        errors.push({ path, message: `Expected ${type}, got ${typeof value}`, schema, value });
       } else if (schema.minimum !== undefined && value < schema.minimum) {
-        errors.push({
-          path,
-          message: `Value ${value} is less than minimum ${schema.minimum}`,
-          schema,
-          value,
-        });
+        errors.push({ path, message: `Value ${value} is less than minimum ${schema.minimum}`, schema, value });
       } else if (schema.maximum !== undefined && value > schema.maximum) {
-        errors.push({
-          path,
-          message: `Value ${value} exceeds maximum ${schema.maximum}`,
-          schema,
-          value,
-        });
+        errors.push({ path, message: `Value ${value} exceeds maximum ${schema.maximum}`, schema, value });
       }
-    } else if (type === 'boolean') {
-      if (typeof value !== 'boolean') {
-        errors.push({
-          path,
-          message: `Expected boolean, got ${typeof value}`,
-          schema,
-          value,
-        });
-      }
-    } else if (type === 'enum') {
-      if (!schema.enum?.includes(value)) {
-        errors.push({
-          path,
-          message: `Value "${value}" not in enum [${schema.enum?.join(', ')}]`,
-          schema,
-          value,
-        });
-      }
+    } else if (type === 'boolean' && typeof value !== 'boolean') {
+      errors.push({ path, message: `Expected boolean, got ${typeof value}`, schema, value });
     }
   }
 
-  /**
-   * Check for required fields
-   */
-  private checkRequired(
-    data: any,
-    schema: JSONSchema7,
-    path: string,
-    errors: ConfigValidationError[]
-  ): void {
-    if (schema.required && Array.isArray(schema.required)) {
-      for (const requiredField of schema.required) {
-        const fieldPath = path ? `${path}.${requiredField}` : requiredField;
-        if (data[requiredField] === undefined) {
-          errors.push({
-            path: fieldPath,
-            message: `Missing required field`,
-            schema: {},
-            value: undefined,
-          });
-        }
-      }
-    }
+  private isUri(value: string): boolean {
+    try { new URL(value); return true; } catch { return false; }
+  }
+
+  private isHostname(value: string): boolean {
+    return /^(https?:\/\/)?[a-z0-9.-]+(:[0-9]{1,5})?$/i.test(value);
   }
 }
 
-/**
- * Deep merge configuration objects
- * Later sources override earlier ones
- */
-export function mergeConfigs(...configs: any[]): any {
-  return deepMerge(...configs);
+export function mergeConfigs(...configs: Record<string, any>[]): Record<string, any> {
+  return configs.reduce((merged, config) => deepMerge(merged, config), {});
 }
 
-/**
- * Normalize environment variable names to config keys
- */
-export function normalizeEnvKey(key: string): string {
-  // Convert VERINODE_DB_HOST to db.host
-  const match = key.match(/^VERINODE_([A-Z_]+)$/);
-  if (!match) return key.toLowerCase();
-  
-  const parts = match[1].split('_');
-  
-  // Join the parts matching the key suffix
-  const nestedKey = parts.join('.');
-  return nestedKey.toLowerCase();
+export function normalizeEnvKey(key: string, prefix = 'VERINODE'): string {
+  return key.replace(new RegExp(`^${prefix}_`), '').toLowerCase().replace(/__/g, '.').replace(/_/g, '.');
 }
 
-/**
- * Flatten config object to env var format
- */
-export function flattenToEnv(config: any, prefix = 'VERINODE'): Record<string, string> {
+export function flattenToEnv(config: Record<string, any>, prefix = 'VERINODE'): Record<string, string> {
   const result: Record<string, string> = {};
-  
-  function flatten(obj: any, currentPrefix: string): void {
-    if (obj === null || typeof obj !== 'object') {
-      result[currentPrefix] = String(obj);
-      return;
-    }
-    
+  const walk = (obj: any, parts: string[]) => {
     for (const [key, value] of Object.entries(obj)) {
-      const newPrefix = `${currentPrefix}_${key.toUpperCase()}`;
-      if (value === null || typeof value !== 'object') {
-        result[newPrefix] = String(value);
-      } else {
-        flatten(value, newPrefix);
-      }
+      const next = [...parts, key];
+      if (value && typeof value === 'object' && !Array.isArray(value)) walk(value, next);
+      else result[[prefix, ...next].join('_').toUpperCase()] = Array.isArray(value) ? JSON.stringify(value) : String(value);
     }
-  }
-  
-  flatten(config, prefix);
+  };
+  walk(config, []);
   return result;
 }
