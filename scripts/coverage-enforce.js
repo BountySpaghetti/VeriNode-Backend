@@ -17,8 +17,19 @@ const COVERAGE_JSON = process.env.COVERAGE_JSON || 'coverage/coverage-final.json
 const BASELINE_JSON = process.env.BASELINE_JSON || '';
 const OUTPUT_JSON = process.env.OUTPUT_JSON || 'coverage/coverage-summary.json';
 
-const OVERALL_MIN = 71;
-const REGRESSION_MAX_DROP_PCT = 1;
+function readNumericEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    console.error(`FATAL: ${name} must be a number between 0 and 100`);
+    process.exit(1);
+  }
+  return value;
+}
+
+const OVERALL_MIN = readNumericEnv('COVERAGE_OVERALL_MIN', 71);
+const REGRESSION_MAX_DROP_PCT = readNumericEnv('COVERAGE_REGRESSION_MAX_DROP_PCT', 1);
 
 /* Per-module minimums. */
 const MODULE_THRESHOLDS = {
