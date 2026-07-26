@@ -1,0 +1,27 @@
+groups:
+  - name: verinode-multi-region-dr
+    rules:
+      - alert: VeriNodeReplicationLagHigh
+        expr: verinode_region_replication_lag_ms > 5000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Replication lag exceeds DR policy
+          description: Region {{ $labels.region }} has replication lag above 5000ms.
+      - alert: VeriNodeCriticalPathLatencyHigh
+        expr: verinode_region_p99_latency_ms > 100
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Critical path P99 latency exceeds target
+          description: Region {{ $labels.region }} has P99 latency above 100ms.
+      - alert: VeriNodeRegionalHeartbeatStale
+        expr: verinode_region_heartbeat_age_ms > 15000
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Regional heartbeat is stale
+          description: Region {{ $labels.region }} has not published a fresh heartbeat.
