@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: verinode-database-migrations
+spec:
+  groups:
+    - name: database-migrations
+      rules:
+        - alert: VeriNodeDatabaseMigrationFailure
+          expr: increase(verinode_database_migration_failures_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: Database migration failed
+            description: A database migration or rollback failed during the last five minutes.
+        - alert: VeriNodeDatabaseMigrationSlowP99
+          expr: histogram_quantile(0.99, sum(rate(verinode_database_migration_duration_ms_bucket[5m])) by (le)) > 100
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Database migration P99 exceeds 100ms
+            description: Migration execution latency is above the issue target and should be reviewed before promotion.
