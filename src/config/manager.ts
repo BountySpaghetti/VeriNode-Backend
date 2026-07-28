@@ -33,7 +33,8 @@ export class ConfigManager {
   private watchedFiles: WatchedFile[] = [];
   private changeCallbacks: Map<string, ConfigChangeCallback> = new Map();
   private reloadInProgress = false;
-  private reloadDebounceMs = 100; // 100ms debounce for < 1s propagation
+  private reloadDebounceMs = 50; // keep hot-reload propagation below the 100ms P99 target
+  private reloadTimer: NodeJS.Timeout | null = null;
   private sighupRegistered = false;
 
   constructor(schema: any = mainSchema) {
@@ -115,6 +116,20 @@ export class ConfigManager {
       staking: {
         maxConcurrentWorkers: 10,
         nonceRangeLimit: '1000',
+      },
+      feature_flags: {
+        overrides: {},
+      },
+      capacity_shedding: {
+        enabled: true,
+        checkIntervalMs: 5000,
+        cooldownPeriodMs: 30000,
+        thresholds: {
+          light: { cpuPercent: 70, memoryPercent: 75, requestRatePerSec: 800, p99LatencyMs: 500 },
+          medium: { cpuPercent: 85, memoryPercent: 85, requestRatePerSec: 1200, p99LatencyMs: 1000 },
+          critical: { cpuPercent: 95, memoryPercent: 95, requestRatePerSec: 2000, p99LatencyMs: 3000 },
+        },
+        flagsToShed: {},
       },
       remote: {
         etcd: {
@@ -219,15 +234,20 @@ export class ConfigManager {
    * Trigger configuration reload with debounce
    */
   triggerReload(): void {
-    if (this.reloadInProgress) {
-      return;
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
     }
 
-    this.reloadInProgress = true;
     configEventBus.emitEvent('reload_initiated');
 
-    // Debounce reloads
-    setTimeout(async () => {
+    this.reloadTimer = setTimeout(async () => {
+      if (this.reloadInProgress) {
+        this.triggerReload();
+        return;
+      }
+
+      this.reloadTimer = null;
+      this.reloadInProgress = true;
       try {
         await this.reload();
         configEventBus.emitEvent('reload_complete', this.config);
@@ -238,6 +258,7 @@ export class ConfigManager {
         this.reloadInProgress = false;
       }
     }, this.reloadDebounceMs);
+    this.reloadTimer.unref?.();
   }
 
   /**
@@ -390,6 +411,10 @@ export class ConfigManager {
    * Cleanup resources
    */
   cleanup(): void {
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+      this.reloadTimer = null;
+    }
     for (const watched of this.watchedFiles) {
       if (watched.interval) {
         clearInterval(watched.interval);
