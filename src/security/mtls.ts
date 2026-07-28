@@ -97,6 +97,28 @@ export function validateSpiffeIdentity(
   });
 }
 
+
+export function validateServiceMeshConfig(config: MtlsConfig): string[] {
+  const issues: string[] = [];
+  if (!config.enabled) return issues;
+  if (!config.trustDomain.trim()) {
+    issues.push('trustDomain is required when mTLS is enabled');
+  }
+  if (config.allowedSpiffeIds.length === 0) {
+    issues.push('allowedSpiffeIds must list explicit SPIFFE identities when mTLS is enabled');
+  }
+  if (config.certMaxValidityMs > DEFAULT_CERT_MAX_VALIDITY_MS) {
+    issues.push('certMaxValidityMs must not exceed the 24-hour workload certificate policy');
+  }
+  if (config.minSecondsUntilExpiry < 300) {
+    issues.push('minSecondsUntilExpiry should be at least 300 seconds for safe rotation alerting');
+  }
+  if (config.reloadPollMs < 10_000) {
+    issues.push('reloadPollMs should be at least 10000 milliseconds to avoid excessive filesystem polling');
+  }
+  return issues;
+}
+
 export function validatePeerCertificate(
   cert: tls.PeerCertificate | undefined,
   config: Pick<MtlsConfig, 'trustDomain' | 'allowedSpiffeIds'>,
@@ -116,6 +138,12 @@ export class MtlsCertificateManager {
   private log = createLogger('mtls', { 'tls.mode': 'mtls' });
 
   constructor(public readonly config: MtlsConfig) {
+    const meshIssues = validateServiceMeshConfig(config);
+    if (meshIssues.length > 0) {
+      this.log.warn('mTLS service mesh configuration has policy warnings', {
+        'mtls.policy_issues': meshIssues.join('; '),
+      });
+    }
     if (config.enabled) this.assertConfigured();
   }
 
