@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: verinode-secret-rotation
+  labels:
+    app: verinode-backend
+spec:
+  groups:
+    - name: secret-rotation.rules
+      rules:
+        - alert: SecretRotationFailures
+          expr: increase(secret_rotation_failure_total[5m]) > 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: Secret rotation failures detected
+            description: A database credential or API key rotation failed and was rolled back.
+        - alert: SecretRotationCanaryStuck
+          expr: secret_rotation_active_canaries > 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: Secret rotation canary has not completed
+            description: A secret rotation is still in canary longer than the expected analysis window.
