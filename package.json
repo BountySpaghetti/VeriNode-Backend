@@ -9,9 +9,7 @@
     "test:consensus-sim": "npx ts-node --project tsconfig.json tests/consensus_sim.test.ts",
     "test:reputation": "npx ts-node --project tsconfig.json tests/reputation/scoreService.test.ts",
     "clean": "rm -rf dist",
-    "precommit:check": "node scripts/pre-commit-checks.cjs",
-    "precommit:full": "VERINODE_PRECOMMIT_FULL=1 node scripts/pre-commit-checks.cjs",
-    "test:precommit": "node tests/scripts/pre-commit-checks.test.cjs"
+    "ci:validate-workflow": "node scripts/validate-ci-workflow.cjs"
   },
   "repository": {
     "type": "git",
