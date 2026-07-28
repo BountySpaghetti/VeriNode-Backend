@@ -9,7 +9,7 @@
     "test:consensus-sim": "npx ts-node --project tsconfig.json tests/consensus_sim.test.ts",
     "test:reputation": "npx ts-node --project tsconfig.json tests/reputation/scoreService.test.ts",
     "clean": "rm -rf dist",
-    "test:replication": "npx ts-node --project tsconfig.json tests/replication/multi_region.test.ts"
+    "test:payload-encryption": "npx ts-node --project tsconfig.json tests/security/payload_encryption.test.ts"
   },
   "repository": {
     "type": "git",
