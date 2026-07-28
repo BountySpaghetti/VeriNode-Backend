@@ -91,24 +91,6 @@ async function bootstrap() {
     console.warn('[config-drift] Drift modules not loaded');
   }
 
-  // 1c. Initialize distributed job scheduler
-  const schedulerModule = loadTsModule('scheduler/index');
-  if (schedulerModule && typeof schedulerModule.JobScheduler === 'function') {
-    try {
-      const dbModule = require('./src/config/database');
-      const db = typeof dbModule.createPool === 'function' ? dbModule.createPool() : null;
-      if (db) {
-        const jobScheduler = new schedulerModule.JobScheduler({ db });
-        global.__verinode_job_scheduler = jobScheduler;
-        console.log('[index] Distributed job scheduler initialized');
-      } else {
-        console.warn('[index] Job scheduler skipped: no database available');
-      }
-    } catch (err) {
-      console.warn('[index] Job scheduler not started:', (err && err.message) ? err.message : String(err));
-    }
-  }
-
   // 2. Initialize tracing
 
   const tracing = loadTsModule('diagnostics/tracer');
@@ -128,6 +110,13 @@ async function bootstrap() {
 
   // 3. Set up Express middleware
   app.use(express.json());
+
+  const cacheModule = loadTsModule('cache/index');
+  if (cacheModule && typeof cacheModule.createCacheLayerFromEnv === 'function') {
+    app.locals.cache = cacheModule.createCacheLayerFromEnv(process.env);
+    global.__verinode_cache = app.locals.cache;
+    console.log('[cache] Cache layer initialized');
+  }
 
   const rateLimiterModule = loadTsModule('security/rate_limiter');
   if (rateLimiterModule && typeof rateLimiterModule.createRateLimitingMiddleware === 'function') {
@@ -214,9 +203,9 @@ async function bootstrap() {
     if (mtlsManager && typeof mtlsManager.prometheusMetrics === 'function') {
       chunks.push(mtlsManager.prometheusMetrics());
     }
-    const scheduler = getJobScheduler();
-    if (scheduler && typeof scheduler.prometheusMetrics === 'function') {
-      chunks.push(scheduler.prometheusMetrics());
+    const cache = getCacheLayer();
+    if (cache && typeof cache.prometheusMetrics === 'function') {
+      chunks.push(cache.prometheusMetrics());
     }
     if (chunks.length === 0) {
       return res.status(503).type('text/plain').send('# metrics sources not initialised\n');
@@ -257,8 +246,8 @@ function getDeadLetterQueue() {
   return app.locals.deadLetterQueue || global.__verinode_dlq || null;
 }
 
-function getJobScheduler() {
-  return global.__verinode_job_scheduler || null;
+function getCacheLayer() {
+  return app.locals.cache || global.__verinode_cache || null;
 }
 
 async function bootstrapTls(httpServer, httpPort) {
