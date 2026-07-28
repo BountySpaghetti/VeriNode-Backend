@@ -9,7 +9,9 @@
     "test:consensus-sim": "npx ts-node --project tsconfig.json tests/consensus_sim.test.ts",
     "test:reputation": "npx ts-node --project tsconfig.json tests/reputation/scoreService.test.ts",
     "clean": "rm -rf dist",
-    "ci:validate-workflow": "node scripts/validate-ci-workflow.cjs"
+    "test:coverage": "c8 --all --include \"src/**/*.{ts,js}\" --reporter=text --reporter=json npm test",
+    "coverage:enforce": "node scripts/coverage-enforce.js",
+    "ci": "npm run test:coverage && npm run coverage:enforce"
   },
   "repository": {
     "type": "git",
