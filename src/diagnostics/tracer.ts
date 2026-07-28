@@ -362,7 +362,7 @@ export function initTracingFromConfig(otelConfig: OtelConfig, options: InitOptio
 
   if (process.env.OTEL_SDK_DISABLED === 'true' || options.disabled === true) {
     if (!options.silent) {
-      console.log('[tracer] OTEL_SDK_DISABLED=true — skipping initializer');
+      log.info('OTEL_SDK_DISABLED=true — skipping initializer');
     }
     initialized = true;
     return getTraceConfig();
@@ -391,17 +391,19 @@ export function initTracingFromConfig(otelConfig: OtelConfig, options: InitOptio
 
     sdk.start();
     initialized = true;
+    setLoggerServiceName(serviceName);
 
     if (!options.silent) {
-      console.log(
-        `[tracer] OpenTelemetry initialized service=${serviceName} ` +
-          `endpoint=${endpoint} sampler=${samplerRatio}`,
-      );
+      log.info('OpenTelemetry initialized', {
+        'service.name': serviceName,
+        'exporter.endpoint': endpoint,
+        'sampler.ratio': samplerRatio,
+      });
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (!options.silent) {
-      console.warn('[tracer] Failed to initialize OpenTelemetry SDK:', msg);
+      log.warn('Failed to initialize OpenTelemetry SDK', { 'error.message': msg });
     }
     sdk = null;
     queueProcessor = null;

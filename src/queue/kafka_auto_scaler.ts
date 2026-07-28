@@ -1,3 +1,4 @@
+import { createLogger } from '../diagnostics/logger';
 import { KafkaConsumerMonitor } from './kafka_consumer_monitor';
 import type { ConsumerGroupSummary, ConsumerGroupStatus } from './kafka_consumer_monitor';
 
@@ -27,6 +28,8 @@ export type ScaleEvent = {
 };
 
 export type ScaleEventCallback = (event: ScaleEvent) => void;
+
+const log = createLogger('kafka_auto_scaler', { 'messaging.system': 'kafka' });
 
 const DEFAULT_CONFIG: KafkaAutoScalerConfig = {
   minConsumers: 1,
@@ -66,7 +69,7 @@ export class KafkaAutoScaler {
   start(): void {
     if (this._isRunning) return;
     this._isRunning = true;
-    console.log('[KafkaAutoScaler] Starting auto-scaler');
+    log.info('Starting auto-scaler');
     this.monitor.onLagChange((summary, previous) => {
       void this.evaluate(summary, previous);
     });
@@ -150,9 +153,13 @@ export class KafkaAutoScaler {
           if (this._scaleHistory.length > 100) {
             this._scaleHistory.shift();
           }
-          console.log(
-            `[KafkaAutoScaler] Scaled ${direction} group "${groupId}": ${from} -> ${to} (${reason})`,
-          );
+          log.info('Scaled consumer group', {
+            'messaging.kafka.consumer.group': groupId,
+            'autoscaler.direction': direction,
+            'autoscaler.from': from,
+            'autoscaler.to': to,
+            'autoscaler.reason': reason,
+          });
           for (const cb of this.scaleCallbacks) {
             try {
               cb(event);
@@ -161,7 +168,10 @@ export class KafkaAutoScaler {
             }
           }
         } catch (err) {
-          console.error(`[KafkaAutoScaler] Failed to scale group "${groupId}":`, err);
+          log.error('Failed to scale consumer group', {
+            'messaging.kafka.consumer.group': groupId,
+            'error.message': err instanceof Error ? err.message : String(err),
+          });
         }
       }
     }
