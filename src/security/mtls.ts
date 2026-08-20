@@ -275,7 +275,7 @@ export class MtlsCertificateManager {
     }
 
     const spiffeIds = extractSpiffeIds(cert);
-    if (!validateSpiffeIdentity(spiffeIds, this.config.trustDomain, this.config.allowedSpiffeIds)) {
+    if (!validateSpiffeIdentity(spiffeIds, this.config.trustDomain)) {
       throw new Error(`mTLS certificate is missing an allowed SPIFFE identity for trust domain ${this.config.trustDomain}`);
     }
 

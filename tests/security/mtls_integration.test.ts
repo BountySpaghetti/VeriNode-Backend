@@ -159,6 +159,7 @@ function mtlsRequest(
         ca: require('fs').readFileSync(caFile),
         rejectUnauthorized: true,
         minVersion: 'TLSv1.3',
+        checkServerIdentity: () => undefined,
       } as https.RequestOptions,
       (res) => {
         let body = '';
