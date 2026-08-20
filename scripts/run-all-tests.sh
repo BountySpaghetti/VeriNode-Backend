@@ -7,6 +7,6 @@ for file in $(find tests -name '*.test.ts'); do
   if grep -q "vitest" "$file"; then
     npx vitest run "$file"
   else
-    npx ts-node --project tsconfig.json "$file"
+    npx tsx "$file"
   fi
 done
