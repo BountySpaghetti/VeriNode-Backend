@@ -24,7 +24,7 @@ export class AdminRoutes {
     }
 
     try {
-      const result = await this.controller.resolveTentative(nodeId, action);
+      const result = await this.controller.resolveTentative(nodeId as string, action);
 
       if (!result.resolved) {
         return res.status(404).json({
@@ -33,7 +33,7 @@ export class AdminRoutes {
       }
 
       this.log.info('Admin resolved tentative state', {
-        node_id: nodeId,
+        node_id: nodeId as string,
         action,
         outcome: result.outcome,
       });

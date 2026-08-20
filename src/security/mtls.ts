@@ -70,7 +70,7 @@ function positiveInt(value: string | undefined, fallback: number): number {
 
 function hashInputs(parts: Buffer[]): string {
   const hash = createHash('sha256');
-  for (const part of parts) hash.update(part);
+  for (const part of parts) hash.update(part as any);
   return hash.digest('hex');
 }
 
@@ -170,7 +170,7 @@ export class MtlsCertificateManager {
     const contentHash = hashInputs([certPem, keyPem, caPem]);
     if (this.loaded && contentHash === this.contentHash) return this.loaded;
 
-    const cert = new X509Certificate(certPem);
+    const cert = new X509Certificate(certPem as any);
     const validFrom = new Date(cert.validFrom);
     const validTo = new Date(cert.validTo);
     const validityMs = validTo.getTime() - validFrom.getTime();
