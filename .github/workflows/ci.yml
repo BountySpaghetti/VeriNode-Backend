@@ -42,6 +42,8 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'tsconfig.json'
               - 'scripts/**'
+              - 'pre-commit.d/**'
+              - '.gitattributes'
               - 'Dockerfile'
             workflows:
               - '.github/workflows/**'
@@ -124,6 +126,28 @@ jobs:
       - name: Run shard
         run: ${{ matrix.command }}
 
+  pre-commit:
+    name: Pre-commit hook checks
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.workflows == 'true'
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run pre-commit hooks on all files
+        run: |
+          # Simulate pre-commit against all tracked files (CI equivalent)
+          export SKIP=check-format,check-lint
+          for hook in pre-commit.d/*.sh; do
+            [ -f "$hook" ] || continue
+            echo "--- Running $(basename "$hook" .sh) ---"
+            sh "$hook" || exit 1
+          done
+          echo "All pre-commit hooks passed"
+
   security:
     name: Security review gates
     runs-on: ubuntu-latest
@@ -176,7 +200,7 @@ jobs:
   ci-complete:
     name: CI complete
     runs-on: ubuntu-latest
-    needs: [changes, build, test, security, docker]
+    needs: [changes, build, test, pre-commit, security, docker]
     if: always()
     steps:
       - name: Check required jobs
