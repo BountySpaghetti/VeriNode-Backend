@@ -14,39 +14,51 @@ import {
 import * as forge from 'node-forge';
 
 function createCert(workdir: string, spiffeId: string, days = 1) {
-  const keyFile = join(workdir, 'tls.key');
-  const certFile = join(workdir, 'tls.crt');
-
-  const keys = forge.pki.rsa.generateKeyPair(2048);
-  const cert = forge.pki.createCertificate();
-  cert.publicKey = keys.publicKey;
-  cert.serialNumber = Math.floor(Math.random() * 1000000).toString() + Date.now().toString();
-  cert.validity.notBefore = new Date();
-  cert.validity.notAfter = new Date();
-  cert.validity.notAfter.setDate(cert.validity.notBefore.getDate() + days);
-
-  const attrs = [{ name: 'commonName', value: 'verinode-backend' }];
-  cert.setSubject(attrs);
-  cert.setIssuer(attrs);
-
-  cert.setExtensions([
-    { name: 'subjectAltName', altNames: [{ type: 6, value: spiffeId }] }
-  ]);
-
-  cert.sign(keys.privateKey);
-
-  const pemCert = forge.pki.certificateToPem(cert);
-  const pemKey = forge.pki.privateKeyToPem(keys.privateKey);
-
-  writeFileSync(certFile, pemCert);
-  writeFileSync(keyFile, pemKey);
-
-  return { key: keyFile, cert: certFile, ca: certFile };
+  const key = join(workdir, 'tls.key');
+  const cert = join(workdir, 'tls.crt');
+  const config = join(workdir, 'openssl.cnf');
+  writeFileSync(
+    config,
+    `
+[req]
+distinguished_name=req_distinguished_name
+x509_extensions=v3_req
+prompt=no
+[req_distinguished_name]
+CN=verinode-backend
+[v3_req]
+subjectAltName=URI:${spiffeId}
+`,
+  );
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-days',
+      String(days),
+      '-keyout',
+      key,
+      '-out',
+      cert,
+      '-config',
+      config,
+    ],
+    { stdio: 'ignore' },
+  );
+  return { key, cert, ca: cert };
 }
 
 function withTempDir(fn: (dir: string) => void) {
   const dir = mkdtempSync(join(tmpdir(), 'verinode-mtls-'));
-  try { fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
+  try {
+    fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 withTempDir((dir) => {
@@ -77,22 +89,35 @@ withTempDir((dir) => {
 });
 
 assert.deepEqual(
-  extractSpiffeIds({ subjectaltname: 'DNS:example, URI:spiffe://cluster.local/ns/verinode/sa/api' } as any),
+  extractSpiffeIds({
+    subjectaltname: 'DNS:example, URI:spiffe://cluster.local/ns/verinode/sa/api',
+  } as any),
   ['spiffe://cluster.local/ns/verinode/sa/api'],
 );
-assert.equal(validateSpiffeIdentity(['spiffe://cluster.local/ns/verinode/sa/api'], 'cluster.local', []), true);
-assert.equal(validateSpiffeIdentity(['spiffe://evil.local/ns/verinode/sa/api'], 'cluster.local', []), false);
 assert.equal(
-  validateSpiffeIdentity(
-    ['spiffe://cluster.local/ns/verinode/sa/api'],
-    'cluster.local',
-    ['spiffe://cluster.local/ns/verinode/sa/worker'],
-  ),
+  validateSpiffeIdentity(['spiffe://cluster.local/ns/verinode/sa/api'], 'cluster.local', []),
+  true,
+);
+assert.equal(
+  validateSpiffeIdentity(['spiffe://evil.local/ns/verinode/sa/api'], 'cluster.local', []),
+  false,
+);
+assert.equal(
+  validateSpiffeIdentity(['spiffe://cluster.local/ns/verinode/sa/api'], 'cluster.local', [
+    'spiffe://cluster.local/ns/verinode/sa/worker',
+  ]),
   false,
 );
 
-assert.equal(mtlsConfigFromEnv({ VERINODE_MTLS_ENABLED: '1', SPIFFE_ALLOWED_IDS: 'a,b' } as any).enabled, true);
-assert.deepEqual(mtlsConfigFromEnv({ VERINODE_MTLS_ENABLED: '1', SPIFFE_ALLOWED_IDS: 'a,b' } as any).allowedSpiffeIds, ['a', 'b']);
+assert.equal(
+  mtlsConfigFromEnv({ VERINODE_MTLS_ENABLED: '1', SPIFFE_ALLOWED_IDS: 'a,b' } as any).enabled,
+  true,
+);
+assert.deepEqual(
+  mtlsConfigFromEnv({ VERINODE_MTLS_ENABLED: '1', SPIFFE_ALLOWED_IDS: 'a,b' } as any)
+    .allowedSpiffeIds,
+  ['a', 'b'],
+);
 
 const meshIssues = validateServiceMeshConfig({
   enabled: true,
