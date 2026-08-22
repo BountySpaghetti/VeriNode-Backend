@@ -177,6 +177,7 @@ function mtlsRequest(
         rejectUnauthorized: true,
         checkServerIdentity: () => undefined, // SPIFFE validation replaces hostname validation
         minVersion: 'TLSv1.3',
+        checkServerIdentity: () => undefined,
       } as https.RequestOptions,
       (res) => {
         let body = '';

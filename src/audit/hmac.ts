@@ -59,5 +59,5 @@ export function computeHmac(entry: AuditEntry, secret: Buffer): string {
     entry.changeSource,
   ].join('|');
 
-  return createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+  return createHmac('sha256', secret as any).update(payload, 'utf8').digest('hex');
 }

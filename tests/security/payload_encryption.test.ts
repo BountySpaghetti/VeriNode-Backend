@@ -1,10 +1,6 @@
 import assert from 'assert';
 import { randomBytes } from 'crypto';
-import {
-  isEncryptedEnvelope,
-  PayloadEncryptionService,
-  StaticKeyProvider,
-} from '../../src/security/payload_encryption';
+import { isEncryptedEnvelope, PayloadEncryptionService, StaticKeyProvider } from '../../src/security/payload_encryption';
 
 async function main(): Promise<void> {
   const service = new PayloadEncryptionService({
@@ -33,8 +29,8 @@ async function main(): Promise<void> {
   assert.deepStrictEqual(decrypted, payload);
 
   const tampered = await service.encryptPayload(payload);
-  const oldCiphertext = (tampered.user.ssn as any).ciphertext;
-  (tampered.user.ssn as any).ciphertext = oldCiphertext.startsWith('A') ? 'B' + oldCiphertext.substring(1) : 'A' + oldCiphertext.substring(1);
+  const ct = (tampered.user.ssn as any).ciphertext;
+  (tampered.user.ssn as any).ciphertext = ct.endsWith('A') ? ct.replace(/.$/, 'B') : ct.replace(/.$/, 'A');
   await assert.rejects(() => service.decryptPayload(tampered));
 }
 
